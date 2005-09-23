@@ -1,4 +1,10 @@
-$Id: Changelog 2005/09/22 19:55 $
+$Id: Changelog 2005/09/23 12:09 $
+
+version 0.02 (2005/09/23):
+
+	- improved documentation
+	- fixed bad memory allocation
+	- fixed test 01
 
 version 0.01 (2005/09/22):
 

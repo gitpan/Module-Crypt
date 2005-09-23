@@ -5,17 +5,20 @@ use strict;
 
 use File::Spec ();
 use Test;
-BEGIN { plan tests => 2 }
+BEGIN { plan tests => 4 }
 
+use ExtUtils::testlib;
 use Module::Crypt;
 ok eval "require Module::Crypt";
 
-chdir 't';
+BEGIN {
+	chdir 't';
+	use lib 'output';
+}
 
-my $source_file = File::Spec->catfile('Foo.pm');
-my $install_base = File::Spec->catfile('output');
+our $source_file = File::Spec->catfile('Foo.pm');
+our $install_base = File::Spec->catfile('output');
 	
-if (!fork()) {
 	{
 		local *FH;
 		open FH, "> $source_file" or die "Can't create $source_file: $!";
@@ -33,18 +36,18 @@ EOF
 	}
 	
 	
-	CryptModule(
+	ok CryptModule(
 		name => 'Foo',
 		file => $source_file,
 		install_base => $install_base
 	);
 	
 	unlink $source_file;
-} else {
-	sleep 5;
-	eval "require Foo";
+
+	ok eval "require Foo";
 	ok (Foo::multiply(2,3) == 6);
 	
+sub END {
 	system("rm", "-rf", $install_base);
 }
 

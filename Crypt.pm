@@ -1,5 +1,5 @@
 # ===========================================================================
-# Module::Crypt - version 0.01 - 22 Sep 2005
+# Module::Crypt - version 0.02 - 23 Sep 2005
 # 
 # Encrypt your Perl code and compile it into XS
 # 
@@ -14,7 +14,7 @@ package Module::Crypt;
 
 use strict;
 use warnings;
-our $VERSION = 0.01;
+our $VERSION = 0.02;
 
 use Carp qw[croak];
 use File::Basename qw[basename];
@@ -59,7 +59,10 @@ sub CryptModule {
 	# initialize the builder
 	my $build = Module::Build->new(
 		module_name => $Params{name},
-		install_base => $Params{install_base},
+		install_path => {
+			lib => $Params{install_base},
+			arch => $Params{install_base}
+		},
 		pod_files => {}
 	);
 	
@@ -225,7 +228,7 @@ into an XS module. It lets you distribute binary versions without
 disclosing code, although please note that we should better call this
 an obfuscation, as Perl is still internally working with your orignial
 code. While this isn't 100% safe, it makes code retrival much harder than
-any other known Perl obfuscation methods.
+any other known Perl obfuscation method.
 
 =head1 PUBLIC FUNCTIONS
 
@@ -234,7 +237,7 @@ any other known Perl obfuscation methods.
 =item C<CryptModule>
 
 This function does the actual encryption and compilation. It is supposed
-to be called from a Makefile-like script you'll create inside your development
+to be called from a Makefile-like script that you'll create inside your development
 directory. The 5 lines you see in the SYNAPSIS above are sufficient to build 
 (and rebuild) the module.
 
@@ -260,10 +263,36 @@ specified, it defaults to a directory named "output" inside the current working 
 
 =back
 
+=head1 BUGS
+
+=over 4
+
+=item
+
+Module::Crypt is currently only able to encrypt one module/file for each Perl run.
+
+=item
+
+Exporter may not work (actually this is untested).
+
+=item
+
+There could be some malloc() errors when encrypting long scripts. It should very 
+easy to fix this (the cause is bad way to calculate allocation needs).
+
+=item
+
+The build backend is based on Module::Build, which is not very flexible and requires
+some bad workarounds to produce working modules. Module::Build should borrow C/XS related
+subroutines from its code, or maybe switch to ExtUtils::CBuilder.
+
+=back
+
 =head1 AVAILABILITY
 
 Latest versions can be downloaded from CPAN. You are very welcome to write mail 
-to the author (aar@cpan.org) with your comments, suggestions, bug reports or complaints.
+to the author (aar@cpan.org) with your contributions, comments, suggestions, 
+bug reports or complaints.
 
 =head1 AUTHOR
 
@@ -274,5 +303,20 @@ Alessandro Ranellucci E<lt>aar@cpan.orgE<gt>
 Copyright (c) 2005 Alessandro Ranellucci. All Rights Reserved.
 Module::Crypt is free software, you may redistribute it and/or modify it under 
 the same terms as Perl itself.
+
+=head1 DISCLAIMER
+
+This is highly experimental code. Use it AT YOUR OWN RISK. 
+This software is provided by the copyright holders and contributors ``as
+is'' and any express or implied warranties, including, but not limited to,
+the implied warranties of merchantability and fitness for a particular
+purpose are disclaimed. In no event shall the regents or contributors be
+liable for any direct, indirect, incidental, special, exemplary, or
+consequential damages (including, but not limited to, procurement of
+substitute goods or services; loss of use, data, or profits; or business
+interruption) however caused and on any theory of liability, whether in
+contract, strict liability, or tort (including negligence or otherwise)
+arising in any way out of the use of this software, even if advised of the
+possibility of such damage.
 
 =cut

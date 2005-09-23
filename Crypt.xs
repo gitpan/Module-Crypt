@@ -190,9 +190,8 @@ wr(SV* script)
 	 key(pswd, pswd_z);
 	arc4(text, text_z); numd++;
 	
-
 	/* Output */
-	char* o = malloc(SIZE);
+	char* o = malloc(strlen(text) + strlen(text)*24 + SIZE);
 	o[0]='\0';
 	
 	strcat(o, "static  char data [] = ");
