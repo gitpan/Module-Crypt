@@ -16,14 +16,14 @@ BEGIN {
 	use lib 'output';
 }
 
-our $source_file = File::Spec->catfile('Foo.pm');
+our $source_file = File::Spec->catfile('Bar.pm');
 our $install_base = File::Spec->catfile('output');
 	
-	{
-		local *FH;
-		open FH, "> $source_file" or die "Can't create $source_file: $!";
-		print FH <<'EOF';
-package Foo;
+{
+	local *FH;
+	open FH, "> $source_file" or die "Can't create $source_file: $!";
+	print FH <<'EOF';
+package Foo::Bar;
 use strict;
 use warnings;
 our $VERSION = 1.00;
@@ -32,25 +32,24 @@ sub multiply {
 }
 1;
 EOF
-		close FH;
-	}
-	
-	
-	ok CryptModule(
-		name => 'Foo',
-		file => $source_file,
-		install_base => $install_base
-	);
-	
-	unlink $source_file;
-
-	ok eval "require Foo";
-	ok (Foo::multiply(2,3) == 6);
-	
-sub END {
-	system("rm", "-rf", $install_base);
+	close FH;
 }
+	
+	
+ok CryptModule(
+	name => 'Foo::Bar',
+	file => $source_file,
+	install_base => $install_base
+);
 
-chdir '..';
+unlink $source_file;
+
+ok eval "use Foo::Bar; 1";
+ok (Foo::Bar::multiply(2,3) == 6);
+	
+END {
+	system("rm", "-rf", $install_base);
+	chdir '..';
+}
 
 __END__

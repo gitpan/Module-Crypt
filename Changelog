@@ -1,4 +1,9 @@
-$Id: Changelog 2005/09/23 12:09 $
+$Id: Changelog 2005/09/23 20:14 $
+
+version 0.03 (2005/09/23):
+
+	- now subclassing Module::Build
+	- fixed some weird architecture dependent paths
 
 version 0.02 (2005/09/23):
 

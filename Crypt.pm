@@ -1,5 +1,5 @@
 # ===========================================================================
-# Module::Crypt - version 0.02 - 23 Sep 2005
+# Module::Crypt - version 0.03 - 23 Sep 2005
 # 
 # Encrypt your Perl code and compile it into XS
 # 
@@ -14,7 +14,7 @@ package Module::Crypt;
 
 use strict;
 use warnings;
-our $VERSION = 0.02;
+our $VERSION = 0.03;
 
 use Carp qw[croak];
 use File::Basename qw[basename];
@@ -22,7 +22,7 @@ use File::Path ();
 use Module::Build;
 
 require Exporter;
-our @ISA = qw[Exporter];
+our @ISA = qw[Exporter Module::Build];
 our @EXPORT = qw[CryptModule];
 
 use XSLoader;
@@ -57,7 +57,7 @@ sub CryptModule {
 	croak("Please check that $Params{install_base} exists") unless -d $Params{install_base};
 	
 	# initialize the builder
-	my $build = Module::Build->new(
+	my $build = __PACKAGE__->new(
 		module_name => $Params{name},
 		install_path => {
 			lib => $Params{install_base},
@@ -74,8 +74,21 @@ sub CryptModule {
 	_write_c(%Params);
 	
 	# do the build
-	$build->dispatch('install');
+	$build->dispatch('code');
 	push(@delete_lib_dirs, File::Spec->rel2abs('blib'));
+	
+	# let's install the auto directory
+	system("mv", File::Spec->rel2abs('blib/arch/auto'), $Params{install_base});
+	
+	# let's install the module
+	File::Path::mkpath(join "/", $Params{install_base}, @module_path);
+	my $modpath = "$Params{name}.pm";
+	$modpath =~ s|::|/|g;
+	system(
+		"mv", 
+		File::Spec->rel2abs("blib/lib/$modpath"), 
+		File::Spec->rel2abs( File::Spec->catfile($Params{install_base}, @module_path) )
+	);
 	
 	_cleanup();
 	return 1
@@ -224,9 +237,9 @@ Module::Crypt - Encrypt your Perl code and compile it into XS
 =head1 ABSTRACT
 
 Module::Crypt encrypts your pure-Perl modules and then compiles them
-into an XS module. It lets you distribute binary versions without
+into a XS module. It lets you distribute binary versions without
 disclosing code, although please note that we should better call this
-an obfuscation, as Perl is still internally working with your orignial
+an obfuscation, as Perl is still internally working with your original
 code. While this isn't 100% safe, it makes code retrival much harder than
 any other known Perl obfuscation method.
 
@@ -277,14 +290,14 @@ Exporter may not work (actually this is untested).
 
 =item
 
-There could be some malloc() errors when encrypting long scripts. It should very 
+There could be some malloc() errors when encrypting long scripts. It should be very 
 easy to fix this (the cause is bad way to calculate allocation needs).
 
 =item
 
 The build backend is based on Module::Build, which is not very flexible and requires
 some bad workarounds to produce working modules. Module::Build should borrow C/XS related
-subroutines from its code, or maybe switch to ExtUtils::CBuilder.
+subroutines from its code, subclass or maybe switch to ExtUtils::CBuilder.
 
 =back
 

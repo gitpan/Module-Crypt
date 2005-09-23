@@ -5,7 +5,7 @@ Abstract
 --------
 
 Module::Crypt encrypts your pure-Perl modules and then compiles them
-into an XS module. This lets you distribute binary versions without
+into a XS module. This lets you distribute binary versions without
 disclosing code.
 
 ------------
