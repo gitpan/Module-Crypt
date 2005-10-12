@@ -10,9 +10,13 @@ WriteMakefile(
 	VERSION_FROM 	=> 'Crypt.pm',
     'PREREQ_PM'		=> {
     	Carp			=> 0,
-    	File::Basename 	=> 0,
     	File::Path		=> 0,
-    	Module::Build	=> 0
+    	File::Find		=> 0,
+    	File::Spec		=> 0,
+    	File::Temp		=> 0,
+    	ExtUtils::CBuilder		=> 0,
+    	ExtUtils::ParseXS 		=> 0,
+    	ExtUtils::Mkbootstrap 	=> 0
     },
     'dist'         	=> { COMPRESS => 'gzip', SUFFIX => 'gz' }
 );

@@ -1,3 +1,16 @@
+/*
+ ===========================================================================
+ Module::Crypt
+
+ Encrypt your Perl code and compile it into XS
+ 
+ Author: Alessandro Ranellucci <aar@cpan.org>
+ Copyright (c) 2005.
+ 
+ This is EXPERIMENTAL code. Use it AT YOUR OWN RISK.
+ ===========================================================================
+*/
+
 /* If you're looking at this code, please note that I'm not */
 /* a C coder. That's why the following code works but is  */
 /* probably bad. Any contribution from more experienced C */

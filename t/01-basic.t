@@ -16,8 +16,8 @@ BEGIN {
 	use lib 'output';
 }
 
-our $source_file = File::Spec->catfile('Bar.pm');
-our $install_base = File::Spec->catfile('output');
+our $source_file = File::Spec->rel2abs('Bar.pm');
+our $install_base = File::Spec->rel2abs('output');
 	
 {
 	local *FH;
@@ -34,10 +34,8 @@ sub multiply {
 EOF
 	close FH;
 }
-	
-	
+
 ok CryptModule(
-	name => 'Foo::Bar',
 	file => $source_file,
 	install_base => $install_base
 );

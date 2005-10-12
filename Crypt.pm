@@ -1,10 +1,10 @@
 # ===========================================================================
-# Module::Crypt - version 0.03 - 23 Sep 2005
+# Module::Crypt - version 0.04 - 12 Oct 2005
 # 
 # Encrypt your Perl code and compile it into XS
 # 
 # Author: Alessandro Ranellucci <aar@cpan.org>
-# Copyright (c) 2005 - All Rights Reserved.
+# Copyright (c) 2005.
 # 
 # This is EXPERIMENTAL code. Use it AT YOUR OWN RISK.
 # See below for documentation.
@@ -14,84 +14,141 @@ package Module::Crypt;
 
 use strict;
 use warnings;
-our $VERSION = 0.03;
+our $VERSION = 0.04;
 
 use Carp qw[croak];
-use File::Basename qw[basename];
+use ExtUtils::CBuilder ();
+use ExtUtils::ParseXS ();
+use ExtUtils::Mkbootstrap;
+use File::Find ();
 use File::Path ();
-use Module::Build;
+use File::Spec ();
+use File::Temp 'mktemp';
+use IO::File;
 
 require Exporter;
-our @ISA = qw[Exporter Module::Build];
+our @ISA = qw[Exporter];
 our @EXPORT = qw[CryptModule];
 
 use XSLoader;
 XSLoader::load 'Module::Crypt', $VERSION;
 
-our @delete_lib_dirs;
+our @ToDelete;
 
 sub CryptModule {
 	my %Params = @_;
 	
-	# check module name
-	croak("Module name is required") unless $Params{name};
-	
-	# check module file
-	$Params{file} ||= "$Params{name}.pm";
-	croak("Please use the 'file' option to locate the .pm module") unless -e $Params{file};
-	$Params{file} = File::Spec->rel2abs($Params{file});
-	
-	# let's copy the module to lib directory so that
-	# Module::Build can read version
-	my $lib_dir = File::Spec->rel2abs('lib');
-	my @module_path = split(/::/, $Params{name});
-	pop @module_path;
-	File::Path::mkpath(join "/", $lib_dir, @module_path);
-	push(@delete_lib_dirs, $lib_dir);
-	system("cp", $Params{file}, join("/", $lib_dir, @module_path));
+	# get modules list
+	my @Files;
+	if ($Params{file}) {
+		push @Files, $Params{file};
+	}
+	if (ref $Params{files} eq 'ARRAY') {
+		push @Files, @{$Params{files}};
+	} elsif ($Params{files} && !ref $Params{files}) {
+		$Params{files} = File::Spec->rel2abs($Params{files});
+		if (-d $Params{files}) {
+			# scan directory
+			File::Find::find({wanted => sub { 
+				push @Files, $File::Find::name if $File::Find::name =~ /\.pm$/;
+			}, no_chdir => 1}, $Params{files});
+		} elsif (-f $Params{files}) {
+			push @Files, $Params{file};
+		}
+	}
+	my (%Modules, $package, $version);
+	foreach my $file (@Files) {
+		$file = File::Spec->rel2abs($file);
+		croak("File $file does not exist") unless -e $file;
+		$package = '';
+		$version = '1.00';
+		open(MOD, "<$file");
+		while (<MOD>) {
+			if (/^\s*package\s+([a-zA-Z0-9]+(?:::[a-zA-Z0-9_]+)*)\s*/) {
+				$package = $1;
+			}
+			if (/^\s*(?:our\s+)?\$VERSION\s*=\s*['"]?([0-9a-z\.]+)['"]?\s*;/) {
+				$version = $1;
+			}
+		}
+		close MOD;
+		croak("Failed to parse package name in $file") unless $package;
+		croak("File $file conflicts with $Modules{$package}->{file} (package name: $package)")
+			if $Modules{$package};
+		$Modules{$package} = {file => $file, version => $version};
+	}
 	
 	# let's make sure install_base exists
 	$Params{install_base} ||= 'output';
 	$Params{install_base} = File::Spec->rel2abs($Params{install_base});
 	File::Path::mkpath($Params{install_base});
-	croak("Please check that $Params{install_base} exists") unless -d $Params{install_base};
 	
-	# initialize the builder
-	my $build = __PACKAGE__->new(
-		module_name => $Params{name},
-		install_path => {
-			lib => $Params{install_base},
-			arch => $Params{install_base}
-		},
-		pod_files => {}
-	);
+	# create temp directory
+	my $TempDir = mktemp( File::Spec->catdir($Params{install_base}, "/tmp.XXXXXXXXX") );
+	File::Path::mkpath($TempDir);
+	push @ToDelete, $TempDir;
 	
-	# set version
-	$Params{version} ||= $build->version_from_file($Params{file});
-	croak('$VERSION must be specified in your module') unless $Params{version};
+	# compile modules
+	my $cbuilder = ExtUtils::CBuilder->new;
 	
-	# write XS code
-	_write_c(%Params);
+	foreach my $module (keys %Modules) {
 	
-	# do the build
-	$build->dispatch('code');
-	push(@delete_lib_dirs, File::Spec->rel2abs('blib'));
+		my @module_path = _module_path($module);
+		my $module_basename = pop @module_path;
 	
-	# let's install the auto directory
-	system("mv", File::Spec->rel2abs('blib/arch/auto'), $Params{install_base});
-	
-	# let's install the module
-	File::Path::mkpath(join "/", $Params{install_base}, @module_path);
-	my $modpath = "$Params{name}.pm";
-	$modpath =~ s|::|/|g;
-	system(
-		"mv", 
-		File::Spec->rel2abs("blib/lib/$modpath"), 
-		File::Spec->rel2abs( File::Spec->catfile($Params{install_base}, @module_path) )
-	);
-	
-	_cleanup();
-	return 1
+		# let's create path
+		File::Path::mkpath( File::Spec->catdir($TempDir, @module_path) );
+		
+		# let's write source files
+		my $newpath = File::Spec->catfile($TempDir, @module_path, "$module_basename");
+		_write_c($module, $Modules{$module}->{version}, $Modules{$module}->{file}, $newpath);
+		
+		# .xs -> .c
+		ExtUtils::ParseXS::process_file(
+			filename => "$newpath.xs",
+			prototypes => 0,
+			output => "$newpath.c",
+		);
+		
+		# .c -> .o
+		my $obj_file = $cbuilder->object_file("$newpath.c");
+		$cbuilder->compile(
+			source => "$newpath.c",
+			object_file => $obj_file
+		);
+		
+		# .xs -> .bs
+		ExtUtils::Mkbootstrap::Mkbootstrap($newpath);
+		{my $fh = IO::File->new(">> $newpath.bs")};  # create
+		
+		# .o -> .(a|bundle)
+		my $lib_file = $cbuilder->lib_file($obj_file);
+		print "--> $lib_file\n";
+		$cbuilder->link(
+			module_name => $module,
+	   		objects => [$obj_file],
+			lib_file => $lib_file
+		);
+		
+		# move everything to install_base
+		my $final_path = File::Spec->catdir($Params{install_base}, @module_path);
+		my $final_path_auto = File::Spec->catdir($Params{install_base}, "auto", @module_path, $module_basename);
+		File::Path::mkpath($final_path);
+		File::Path::mkpath($final_path_auto);
+		system("mv", "$newpath.pm", "$final_path/$module_basename.pm");
+		foreach (qw[bs a bundle]) {
+			next unless -e "$newpath.$_";
+			system("mv", "$newpath.$_", "$final_path_auto/");
+		}
+	}		
+
+ 	_cleanup();
+	return 1;
+}
+
+sub _module_path {
+	my ($package) = @_;
+	return split(/::/, $package);
 }
 
 sub END {
@@ -99,22 +156,20 @@ sub END {
 }
 
 sub _cleanup {
-	system("rm", "-rf", $_) while ($_ = shift @delete_lib_dirs);
+	File::Path::rmtree($_) foreach @ToDelete;
 }
 
 sub _write_c {
-	my %Params = @_;
-	
-	my $basename = basename($Params{file}, '.pm');
+	my ($package, $version, $pm, $newpath) = @_;
 	
 	# get source script
-	open(SRC, "<$Params{file}");
+	open(SRC, "<$pm");
 	my @lines = <SRC>;
 	close SRC;
 	
-	open(XS, ">lib/$basename.xs");
 	
 	# encrypt things
+	open(XS, ">$newpath.xs");
 	print XS wr(join "", @lines);
 	print XS <<"EOF"
 
@@ -184,7 +239,7 @@ void arc4(void * str, int len)
 	}
 }
 
-MODULE = $Params{name}		PACKAGE = $Params{name}
+MODULE = $package		PACKAGE = $package
 
 BOOT:
 	stte_0();
@@ -196,14 +251,14 @@ EOF
 	;
 	close XS;
 	
-	open(PM, ">lib/$basename.pm");
+	open(PM, ">$newpath.pm");
 	print PM <<"EOF"
-package $Params{name};
+package $package;
 
 use strict;
 use warnings;
 
-our \$VERSION = $Params{version};
+our \$VERSION = $version;
 
 use XSLoader;
 XSLoader::load __PACKAGE__, \$VERSION;
@@ -227,10 +282,22 @@ Module::Crypt - Encrypt your Perl code and compile it into XS
 
  use Module::Crypt;
  
+ #Êfor a single file:
  CryptModule(
-    name => 'Foo::Bar',
     file => 'Bar.pm',
-    install_base => '/path/to/lib'
+    install_base => '/path/to/my/lib'
+ );
+ 
+ # for multiple files:
+ CryptModule(
+    files => ['Foo.pm', 'Bar.pm'],
+    install_base => '/path/to/my/lib'
+ );
+ 
+ # for a directory:
+ CryptModule(
+    files => '/path/to/source/dir',
+    install_base => '/path/to/my/lib'
  );
 
 
@@ -251,21 +318,22 @@ any other known Perl obfuscation method.
 
 This function does the actual encryption and compilation. It is supposed
 to be called from a Makefile-like script that you'll create inside your development
-directory. The 5 lines you see in the SYNAPSIS above are sufficient to build 
-(and rebuild) the module.
+directory. The 4 lines you see in each of the examples above are sufficient to build 
+(and rebuild) the modules.
 
 =over 8
 
-=item name
-
-This must contain the name of the module in package form (such as Foo::Bar). 
-It's required.
-
 =item file
 
-This is not required in most cases, as Module::Crypt locates the 
-module file using the module name, but it's safer to specify it expecially
-when you have a multilevel module (that is Foo::Bar instead of, say, simply Foo).
+This contains the path of your source module. It can be a relative filename too,
+if you're launching your CryptModule() from the same directory.
+
+=item files
+
+If you want to encrypt and compile multiple modules, you can pass an arrayref to the
+I<files> parameter with the paths/filenames listed. If you pass a string instead of
+of an arrayref, it will be interpreted as a directory path so that Module::Crypt will
+scan it and automatically add any .pm file to the modules list.
 
 =item install_base
 
@@ -282,22 +350,8 @@ specified, it defaults to a directory named "output" inside the current working 
 
 =item
 
-Module::Crypt is currently only able to encrypt one module/file for each Perl run.
-
-=item
-
-Exporter may not work (actually this is untested).
-
-=item
-
 There could be some malloc() errors when encrypting long scripts. It should be very 
 easy to fix this (the cause is bad way to calculate allocation needs).
-
-=item
-
-The build backend is based on Module::Build, which is not very flexible and requires
-some bad workarounds to produce working modules. Module::Build should borrow C/XS related
-subroutines from its code, subclass or maybe switch to ExtUtils::CBuilder.
 
 =back
 
@@ -313,7 +367,7 @@ Alessandro Ranellucci E<lt>aar@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2005 Alessandro Ranellucci. All Rights Reserved.
+Copyright (c) 2005 Alessandro Ranellucci.
 Module::Crypt is free software, you may redistribute it and/or modify it under 
 the same terms as Perl itself.
 
