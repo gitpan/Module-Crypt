@@ -5,7 +5,7 @@
  Encrypt your Perl code and compile it into XS
  
  Author: Alessandro Ranellucci <aar@cpan.org>
- Copyright (c) 2005.
+ Copyright (c).
  
  This is EXPERIMENTAL code. Use it AT YOUR OWN RISK.
  ===========================================================================
@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <unistd.h>
+
 
 #define SIZE 4096
 
@@ -204,7 +204,7 @@ wr(SV* script)
 	arc4(text, text_z); numd++;
 	
 	/* Output */
-	char* o = malloc(strlen(text) + strlen(text)*24 + SIZE);
+	char* o = malloc(strlen(text) + strlen(text)*24 + SIZE);  /* UGLY HACK -- patches welcome */
 	o[0]='\0';
 	
 	strcat(o, "static  char data [] = ");

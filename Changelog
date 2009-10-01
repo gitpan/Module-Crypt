@@ -1,5 +1,10 @@
 $Id: Changelog 2005/09/23 20:14 $
 
+version 0.05 (2009/09/30):
+
+    - worked only on Mac, because .bundle, but not .so was moved (patch by Slaven Rezić)
+    - uses File::Copy::move to be more portable
+
 version 0.04 (2005/10/12):
 
 	- removed Module::Build requirement

@@ -10,6 +10,7 @@ WriteMakefile(
 	VERSION_FROM 	=> 'Crypt.pm',
     'PREREQ_PM'		=> {
     	Carp			=> 0,
+    	File::Copy      => 0,
     	File::Path		=> 0,
     	File::Find		=> 0,
     	File::Spec		=> 0,

@@ -1,10 +1,10 @@
 # ===========================================================================
-# Module::Crypt - version 0.04 - 12 Oct 2005
+# Module::Crypt
 # 
 # Encrypt your Perl code and compile it into XS
 # 
 # Author: Alessandro Ranellucci <aar@cpan.org>
-# Copyright (c) 2005.
+# Copyright (c).
 # 
 # This is EXPERIMENTAL code. Use it AT YOUR OWN RISK.
 # See below for documentation.
@@ -14,12 +14,13 @@ package Module::Crypt;
 
 use strict;
 use warnings;
-our $VERSION = 0.04;
+our $VERSION = 0.05;
 
 use Carp qw[croak];
 use ExtUtils::CBuilder ();
 use ExtUtils::ParseXS ();
 use ExtUtils::Mkbootstrap;
+use File::Copy 'move';
 use File::Find ();
 use File::Path ();
 use File::Spec ();
@@ -135,10 +136,10 @@ sub CryptModule {
 		my $final_path_auto = File::Spec->catdir($Params{install_base}, "auto", @module_path, $module_basename);
 		File::Path::mkpath($final_path);
 		File::Path::mkpath($final_path_auto);
-		system("mv", "$newpath.pm", "$final_path/$module_basename.pm");
-		foreach (qw[bs a bundle]) {
+		move("${newpath}.pm", "${final_path}/${module_basename}.pm") or die $!;
+		foreach (qw[bs a bundle so]) {
 			next unless -e "$newpath.$_";
-			system("mv", "$newpath.$_", "$final_path_auto/");
+			move("${newpath}.$_", "${final_path_auto}/") or die $!;
 		}
 	}		
 
@@ -282,7 +283,7 @@ Module::Crypt - Encrypt your Perl code and compile it into XS
 
  use Module::Crypt;
  
- #Êfor a single file:
+ # for a single file:
  CryptModule(
     file => 'Bar.pm',
     install_base => '/path/to/my/lib'
@@ -350,8 +351,9 @@ specified, it defaults to a directory named "output" inside the current working 
 
 =item
 
-There could be some malloc() errors when encrypting long scripts. It should be very 
-easy to fix this (the cause is bad way to calculate allocation needs).
+There could be some malloc() errors and/or segmentation faults when encrypting 
+long scripts. Try running your script multiple times as it's a random error. 
+It should be very easy to fix (the cause is bad way to calculate allocation needs).
 
 =back
 
@@ -367,7 +369,7 @@ Alessandro Ranellucci E<lt>aar@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2005 Alessandro Ranellucci.
+Copyright (c) Alessandro Ranellucci.
 Module::Crypt is free software, you may redistribute it and/or modify it under 
 the same terms as Perl itself.
 
